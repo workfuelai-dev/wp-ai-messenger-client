@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import './index.css'
 import { Sidebar } from './components/Sidebar'
 import { Chat } from './components/Chat'
@@ -31,7 +30,7 @@ function App() {
             <Chat
               conversation={selectedConversation}
               messages={messages}
-              onSend={(text) => {
+              onSend={(text: string) => {
                 if (!selectedConversation) return
                 sendMessage({ conversationId: selectedConversation.id, text })
               }}
