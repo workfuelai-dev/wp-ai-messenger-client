@@ -3,6 +3,13 @@ export type Contact = {
   name: string
   avatarUrl?: string
   lastMessageAt?: string
+  // UI/meta
+  lastText?: string
+  lastAt?: string
+  unreadCount?: number
+  online?: boolean
+  pinned?: boolean
+  archived?: boolean
 }
 
 export type Conversation = {

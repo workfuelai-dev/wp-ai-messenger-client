@@ -17,8 +17,9 @@ export function Sidebar({
   const [openSettings, setOpenSettings] = useState(false)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return contacts
-    return contacts.filter(c => c.name.toLowerCase().includes(q))
+    const data = contacts.slice().sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (Number((b.unreadCount||0)>0) - Number((a.unreadCount||0)>0)))
+    if (!q) return data
+    return data.filter(c => c.name.toLowerCase().includes(q))
   }, [contacts, query])
 
   return (
@@ -59,17 +60,24 @@ export function Sidebar({
                 onClick={() => onSelectContact(c)}
                 className={`w-full flex items-stretch gap-3 px-3 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 ${c.conversation?.id === activeConversationId ? 'bg-zinc-50 dark:bg-zinc-900/50' : ''}`}
               >
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white grid place-items-center font-semibold flex-shrink-0">
-                  {c.name.slice(0,1).toUpperCase()}
+                <div className="relative">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white grid place-items-center font-semibold flex-shrink-0">
+                    {c.name.slice(0,1).toUpperCase()}
+                  </div>
+                  {c.online && <span className="absolute -right-0 -bottom-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-zinc-900" />}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-2">
                     <p className="font-medium truncate flex-1">{c.name}</p>
-                    <span className="text-[11px] text-zinc-500">{c.conversation?.id ? `hoy` : ''}</span>
+                    <span className="text-[11px] text-zinc-500">{c.lastAt || ''}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-zinc-500 truncate flex-1">{c.conversation ? 'Último mensaje • vista previa' : 'Sin conversación'}</p>
-                    <span className="text-[11px] text-zinc-400">{c.conversation?.id ? `#${c.conversation.id}` : ''}</span>
+                    <p className={`text-xs truncate flex-1 ${c.unreadCount ? 'text-white' : 'text-zinc-500'}`}>{c.lastText || (c.conversation ? 'Último mensaje' : 'Sin conversación')}</p>
+                    {c.unreadCount ? (
+                      <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[11px] grid place-items-center">{c.unreadCount}</span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-400">{c.conversation?.id ? `#${c.conversation.id}` : ''}</span>
+                    )}
                   </div>
                 </div>
               </button>

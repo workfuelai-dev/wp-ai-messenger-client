@@ -29,11 +29,11 @@ export function useMessenger() {
       try {
         const data = await api.getContacts()
         if (!active) return
-        setContacts(data.map(c => ({ ...c, conversation: null })))
+        setContacts(enrichContacts(data).map(c => ({ ...c, conversation: null })))
       } catch {
         // Fallback para GH Pages sin backend
         if (!active) return
-        setContacts(mockContacts.map(c => ({ ...c, conversation: null })))
+        setContacts(enrichContacts(mockContacts).map(c => ({ ...c, conversation: null })))
       }
     }
 
@@ -73,6 +73,8 @@ export function useMessenger() {
           }
           return prev
         })
+        // actualizar preview
+        setContacts(prev => updatePreview(prev, msg))
       })
       return () => { s.disconnect() }
     } catch {
@@ -85,21 +87,23 @@ export function useMessenger() {
     try {
       const conversation = await api.ensureConversation(contact.id)
       setSelectedConversation(conversation)
-      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation } : c))
+      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
     } catch {
       const conversation: Conversation = { id: contact.id + 1000, contactId: contact.id, title: contact.name }
       setSelectedConversation(conversation)
-      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation } : c))
+      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
     }
   }
 
   async function sendMessage({ conversationId, text }: { conversationId: number, text: string }) {
+    const optimistic: Message = { id: Date.now(), conversationId, senderId: currentUserId, text, createdAt: new Date().toISOString() }
+    setMessages(prev => [...prev, optimistic])
+    setContacts(prev => updatePreview(prev, optimistic))
     try {
-      const created = await api.sendMessage({ conversationId, text })
-      setMessages(prev => [...prev, created])
+      await api.sendMessage({ conversationId, text })
+      // ya reflejado optimistamente
     } catch {
-      const created: Message = { id: Date.now(), conversationId, senderId: currentUserId, text, createdAt: new Date().toISOString() }
-      setMessages(prev => [...prev, created])
+      // mantener optimista en modo estático
     }
   }
 
@@ -112,4 +116,23 @@ export function useMessenger() {
     currentUserId,
     loading,
   }
+}
+
+function enrichContacts(list: Contact[]): Contact[] {
+  return list.map((c, i) => ({
+    ...c,
+    online: Math.random() > 0.4,
+    lastText: 'Último mensaje • vista previa',
+    lastAt: 'hoy',
+    unreadCount: i % 3 === 0 ? Math.ceil(Math.random() * 3) : 0,
+  }))
+}
+
+function updatePreview(prev: Array<Contact & { conversation?: Conversation | null }>, msg: Message) {
+  return prev.map(c => {
+    if (c.conversation?.id === msg.conversationId) {
+      return { ...c, lastText: msg.text, lastAt: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), unreadCount: 0 }
+    }
+    return c
+  })
 } 
