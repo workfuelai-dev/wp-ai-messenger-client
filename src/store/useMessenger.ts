@@ -3,6 +3,7 @@ import { api } from '../api'
 import type { Contact, Conversation, Message } from '../types'
 // @ts-ignore
 import { io, Socket } from 'socket.io-client'
+import { supabase } from '../lib/supabase'
 
 const mockContacts: Contact[] = [
   { id: 101, name: 'Ana López' },
@@ -19,6 +20,7 @@ export function useMessenger() {
   const currentUserId = 1
   const socketRef = useState<Socket | null>(null)[0]
   const isStatic = typeof window !== 'undefined' && location.hostname.endsWith('github.io')
+  const hasSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
   useEffect(() => {
     let active = true
@@ -27,18 +29,27 @@ export function useMessenger() {
 
     async function fetchInitial() {
       try {
+        if (hasSupabase) {
+          // Intentar leer contactos desde tablas (contacts) o derivarlos desde conversations
+          const { data: convs, error } = await supabase
+            .from('conversations')
+            .select('id, contact_id, contacts:contact_id ( id, name )')
+            .limit(50)
+          if (error) throw error
+          const list: Contact[] = (convs || []).map((c: any) => ({ id: c.contacts?.id ?? c.contact_id, name: c.contacts?.name ?? `Contacto ${c.contact_id}` }))
+          const withConv = list.map((c: Contact, idx: number) => ({ ...c, conversation: convs?.[idx] ? { id: (convs as any)[idx].id, contactId: c.id, title: c.name } : null }))
+          setContacts(enrichContacts(withConv))
+          return
+        }
         const data = await api.getContacts()
-        if (!active) return
         setContacts(enrichContacts(data).map(c => ({ ...c, conversation: null })))
       } catch {
-        // Fallback para GH Pages sin backend
-        if (!active) return
         setContacts(enrichContacts(mockContacts).map(c => ({ ...c, conversation: null })))
       }
     }
 
     return () => { active = false }
-  }, [])
+  }, [hasSupabase])
 
   useEffect(() => {
     if (!selectedConversation) return
@@ -46,8 +57,25 @@ export function useMessenger() {
     setLoading(true)
     ;(async () => {
       try {
-        const msgs = await api.getMessages(selectedConversation.id)
-        if (active) setMessages(msgs)
+        if (hasSupabase) {
+          const { data: msgs, error } = await supabase
+            .from('messages')
+            .select('id, conversation_id, sender_id, text, created_at')
+            .eq('conversation_id', selectedConversation.id)
+            .order('created_at', { ascending: true })
+          if (error) throw error
+          const normalized: Message[] = (msgs || []).map(m => ({
+            id: m.id,
+            conversationId: m.conversation_id,
+            senderId: m.sender_id,
+            text: m.text,
+            createdAt: m.created_at,
+          }))
+          if (active) setMessages(normalized)
+        } else {
+          const msgs = await api.getMessages(selectedConversation.id)
+          if (active) setMessages(msgs)
+        }
       } catch {
         if (active) setMessages([
           { id: 1, conversationId: selectedConversation.id, senderId: 2, text: 'Previsualización de conversación.', createdAt: new Date(Date.now() - 600000).toISOString() },
@@ -58,11 +86,24 @@ export function useMessenger() {
       }
     })()
 
+    // Realtime si hay supabase
+    if (hasSupabase) {
+      const channel = supabase
+        .channel('messages')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, (payload) => {
+          const m = payload.new as any
+          const msg: Message = { id: m.id, conversationId: m.conversation_id, senderId: m.sender_id, text: m.text, createdAt: m.created_at }
+          setMessages(prev => [...prev, msg])
+        })
+        .subscribe()
+      return () => { supabase.removeChannel(channel) }
+    }
+
     return () => { active = false }
-  }, [selectedConversation?.id])
+  }, [selectedConversation?.id, hasSupabase])
 
   useEffect(() => {
-    if (isStatic) return // no socket en GH Pages
+    if (isStatic || hasSupabase) return // si usamos supabase, no usar socket.io
     try {
       const s = io('/', { path: '/socket.io' })
       ;(socketRef as any).current = s
@@ -73,7 +114,6 @@ export function useMessenger() {
           }
           return prev
         })
-        // actualizar preview
         setContacts(prev => updatePreview(prev, msg))
       })
       return () => { s.disconnect() }
@@ -81,10 +121,32 @@ export function useMessenger() {
       // ignorar
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConversation?.id])
+  }, [selectedConversation?.id, hasSupabase])
 
   async function selectContact(contact: Contact) {
     try {
+      if (hasSupabase) {
+        // asegurar conversación existente o crearla
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', contact.id)
+          .maybeSingle()
+        let convId = existing?.id
+        if (!convId) {
+          const { data: created, error } = await supabase
+            .from('conversations')
+            .insert({ contact_id: contact.id })
+            .select('id')
+            .single()
+          if (error) throw error
+          convId = created.id
+        }
+        const conversation = { id: convId!, contactId: contact.id, title: contact.name }
+        setSelectedConversation(conversation)
+        setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
+        return
+      }
       const conversation = await api.ensureConversation(contact.id)
       setSelectedConversation(conversation)
       setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
@@ -100,10 +162,14 @@ export function useMessenger() {
     setMessages(prev => [...prev, optimistic])
     setContacts(prev => updatePreview(prev, optimistic))
     try {
+      if (hasSupabase) {
+        // invocar edge function de envío hacia WhatsApp
+        await supabase.functions.invoke('send-message', { body: { conversation_id: conversationId, text } })
+        return
+      }
       await api.sendMessage({ conversationId, text })
-      // ya reflejado optimistamente
     } catch {
-      // mantener optimista en modo estático
+      // mantener optimista
     }
   }
 
