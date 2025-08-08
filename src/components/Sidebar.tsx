@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Contact, Conversation } from '../types'
+import { SettingsDialog } from './SettingsDialog'
 
 export function Sidebar({
   contacts,
@@ -13,6 +14,7 @@ export function Sidebar({
   loading?: boolean
 }) {
   const [query, setQuery] = useState('')
+  const [openSettings, setOpenSettings] = useState(false)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return contacts
@@ -21,8 +23,16 @@ export function Sidebar({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header + Search */}
-      <div className="p-3 border-b border-zinc-200/60 dark:border-zinc-800/60">
+      {/* Topbar */}
+      <div className="px-3 py-2 border-b border-zinc-200/60 dark:border-zinc-800/60 flex items-center gap-3">
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white grid place-items-center font-semibold">U</div>
+        <div className="text-sm font-medium flex-1 truncate">Tú</div>
+        <button title="Nuevo chat" className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">✚</button>
+        <button title="Ajustes" onClick={() => setOpenSettings(true)} className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">⚙︎</button>
+      </div>
+
+      {/* Search */}
+      <div className="p-3">
         <div className="relative">
           <input
             placeholder="Buscar contactos"
@@ -33,6 +43,7 @@ export function Sidebar({
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">⌘K</span>
         </div>
       </div>
+
       {/* Chats */}
       <div className="flex-1 overflow-auto">
         {loading && (
@@ -54,12 +65,11 @@ export function Sidebar({
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-2">
                     <p className="font-medium truncate flex-1">{c.name}</p>
-                    <span className="text-[11px] text-zinc-500">{c.conversation?.id ? `#${c.conversation.id}` : ''}</span>
+                    <span className="text-[11px] text-zinc-500">{c.conversation?.id ? `hoy` : ''}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-zinc-500 truncate flex-1">{c.conversation ? 'Último mensaje • vista previa' : 'Sin conversación'}</p>
-                    {/* Placeholder de hora */}
-                    <span className="text-[11px] text-zinc-400">{c.conversation ? 'hoy' : ''}</span>
+                    <span className="text-[11px] text-zinc-400">{c.conversation?.id ? `#${c.conversation.id}` : ''}</span>
                   </div>
                 </div>
               </button>
@@ -68,6 +78,8 @@ export function Sidebar({
           ))}
         </ul>
       </div>
+
+      <SettingsDialog open={openSettings} onClose={() => setOpenSettings(false)} />
     </div>
   )
 } 
