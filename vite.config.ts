@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/wp-ai-messenger-client/',
+  // Base relativa para que funcione tanto en Pages (docs/) como en dev
+  base: './',
   server: {
     proxy: {
       '/api': 'http://localhost:4000',
