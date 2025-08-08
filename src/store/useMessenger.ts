@@ -24,37 +24,47 @@ export function useMessenger() {
       try {
         if (hasSupabase) {
           console.log('Cargando datos desde Supabase...')
-          // Intentar leer contactos desde tablas (contacts) o derivarlos desde conversations
-          const { data: convs, error } = await (supabase as any)
-            .from('conversations')
-            .select('id, contact_id, contacts:contact_id ( id, name, phone, wa_id )')
+          // Intentar leer contactos desde tablas (contacts) directamente
+          const { data: contacts, error: contactsError } = await (supabase as any)
+            .from('contacts')
+            .select('id, name, phone, wa_id')
             .limit(50)
           
-          if (error) {
-            console.error('Error cargando conversaciones:', error)
+          if (contactsError) {
+            console.error('Error cargando contactos:', contactsError)
             setContacts([])
             return
           }
           
-          console.log('Conversaciones cargadas:', convs)
+          console.log('Contactos cargados:', contacts)
           
-          if (!convs || convs.length === 0) {
-            console.log('No hay conversaciones, mostrando lista vacía')
+          if (!contacts || contacts.length === 0) {
+            console.log('No hay contactos, mostrando lista vacía')
             setContacts([])
             return
           }
           
-          const list: Contact[] = (convs || []).map((c: any) => ({ 
-            id: c.contacts?.id ?? c.contact_id, 
-            name: c.contacts?.name ?? c.contacts?.phone ?? c.contacts?.wa_id ?? `Contacto ${c.contact_id}`,
-            phone: c.contacts?.phone,
-            wa_id: c.contacts?.wa_id
-          }))
-          const withConv = list.map((c: Contact, idx: number) => ({ 
-            ...c, 
-            conversation: convs?.[idx] ? { id: (convs as any)[idx].id, contactId: c.id, title: c.name } : null 
-          }))
-          setContacts(enrichContacts(withConv))
+          // Para cada contacto, obtener su conversación
+          const contactsWithConversations = await Promise.all(
+            contacts.map(async (contact: any) => {
+              const { data: convs } = await (supabase as any)
+                .from('conversations')
+                .select('id')
+                .eq('contact_id', contact.id)
+                .limit(1)
+              
+              return {
+                ...contact,
+                conversation: convs?.[0] ? { 
+                  id: convs[0].id, 
+                  contactId: contact.id, 
+                  title: contact.name 
+                } : null
+              }
+            })
+          )
+          
+          setContacts(enrichContacts(contactsWithConversations))
           return
         }
         
