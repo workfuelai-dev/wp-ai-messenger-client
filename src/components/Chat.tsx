@@ -3,6 +3,7 @@ import { MessageBubble } from './MessageBubble'
 import { useEffect, useMemo, useRef } from 'react'
 import { Composer } from './Composer'
 import { DateSeparator } from './DateSeparator'
+import { Search, Paperclip, MoreVertical } from 'lucide-react'
 
 function formatDateLabel(iso: string) {
   const d = new Date(iso)
@@ -65,9 +66,9 @@ export function Chat({
           <p className="text-xs text-zinc-500 truncate">En línea</p>
         </div>
         <div className="flex items-center gap-3 text-zinc-500">
-          <button title="Buscar" className="hover:text-zinc-700 dark:hover:text-zinc-300">🔍</button>
-          <button title="Adjuntar" className="hover:text-zinc-700 dark:hover:text-zinc-300">📎</button>
-          <button title="Más" className="hover:text-zinc-700 dark:hover:text-zinc-300">⋮</button>
+          <button title="Buscar" className="hover:text-zinc-700 dark:hover:text-zinc-300"><Search size={18} /></button>
+          <button title="Adjuntar" className="hover:text-zinc-700 dark:hover:text-zinc-300"><Paperclip size={18} /></button>
+          <button title="Más" className="hover:text-zinc-700 dark:hover:text-zinc-300"><MoreVertical size={18} /></button>
         </div>
       </div>
 
