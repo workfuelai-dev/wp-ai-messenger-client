@@ -7,10 +7,21 @@
   --radius-md: 12px;
 }
 
-html, body, #root {
-  height: 100%;
+html, body, #root { height: 100%; }
+
+body { @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100 antialiased; }
+
+/* Fondo tipo chat */
+.chat-bg {
+  background-image:
+    radial-gradient(transparent 1px, rgba(0,0,0,0.02) 1px),
+    radial-gradient(transparent 1px, rgba(0,0,0,0.02) 1px);
+  background-size: 24px 24px, 24px 24px;
+  background-position: 0 0, 12px 12px;
 }
 
-body {
-  @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100 antialiased;
-}
+/* Scrollbar minimal */
+* { scrollbar-width: thin; scrollbar-color: rgb(113 113 122 / 0.5) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background-color: rgba(113,113,122,0.4); border-radius: 9999px; }
+::-webkit-scrollbar-track { background: transparent; }

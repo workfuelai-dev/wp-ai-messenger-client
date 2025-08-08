@@ -15,18 +15,18 @@ function App() {
   } = useMessenger()
 
   return (
-    <div className="min-h-screen h-full">
-      <div className="mx-auto max-w-7xl h-screen p-4 sm:p-6">
-        <div className="grid h-full grid-cols-1 md:grid-cols-[320px,1fr] gap-4">
-          <div className="bg-white/70 dark:bg-zinc-800/60 backdrop-blur rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 overflow-hidden flex flex-col">
+    <div className="h-full">
+      <div className="mx-auto max-w-[1400px] h-full p-0 md:p-6">
+        <div className="h-[100vh] md:h-[calc(100vh-3rem)] grid grid-cols-1 md:grid-cols-[380px,1fr] bg-zinc-100 dark:bg-zinc-800 rounded-none md:rounded-2xl overflow-hidden border border-zinc-200/60 dark:border-zinc-700/60">
+          <aside className="bg-white dark:bg-zinc-900 border-r border-zinc-200/60 dark:border-zinc-800/60 flex flex-col">
             <Sidebar
               contacts={contacts}
               onSelectContact={selectContact}
               activeConversationId={selectedConversation?.id}
               loading={loading}
             />
-          </div>
-          <div className="bg-white/70 dark:bg-zinc-800/60 backdrop-blur rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 overflow-hidden flex flex-col">
+          </aside>
+          <main className="bg-zinc-50 dark:bg-zinc-900 chat-bg flex flex-col">
             <Chat
               conversation={selectedConversation}
               messages={messages}
@@ -37,7 +37,7 @@ function App() {
               currentUserId={currentUserId}
               loading={loading}
             />
-          </div>
+          </main>
         </div>
       </div>
     </div>
