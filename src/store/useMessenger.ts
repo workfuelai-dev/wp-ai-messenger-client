@@ -20,7 +20,7 @@ export function useMessenger() {
   const currentUserId = 1
   const socketRef = useState<Socket | null>(null)[0]
   const isStatic = typeof window !== 'undefined' && location.hostname.endsWith('github.io')
-  const hasSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+  const hasSupabase = Boolean(supabase)
 
   useEffect(() => {
     let active = true
@@ -31,7 +31,7 @@ export function useMessenger() {
       try {
         if (hasSupabase) {
           // Intentar leer contactos desde tablas (contacts) o derivarlos desde conversations
-          const { data: convs, error } = await supabase
+          const { data: convs, error } = await (supabase as any)
             .from('conversations')
             .select('id, contact_id, contacts:contact_id ( id, name )')
             .limit(50)
@@ -58,13 +58,13 @@ export function useMessenger() {
     ;(async () => {
       try {
         if (hasSupabase) {
-          const { data: msgs, error } = await supabase
+          const { data: msgs, error } = await (supabase as any)
             .from('messages')
             .select('id, conversation_id, sender_id, text, created_at')
             .eq('conversation_id', selectedConversation.id)
             .order('created_at', { ascending: true })
           if (error) throw error
-          const normalized: Message[] = (msgs || []).map(m => ({
+          const normalized: Message[] = (msgs || []).map((m: any) => ({
             id: m.id,
             conversationId: m.conversation_id,
             senderId: m.sender_id,
@@ -88,15 +88,15 @@ export function useMessenger() {
 
     // Realtime si hay supabase
     if (hasSupabase) {
-      const channel = supabase
+      const channel = (supabase as any)
         .channel('messages')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, (payload: any) => {
           const m = payload.new as any
           const msg: Message = { id: m.id, conversationId: m.conversation_id, senderId: m.sender_id, text: m.text, createdAt: m.created_at }
           setMessages(prev => [...prev, msg])
         })
         .subscribe()
-      return () => { supabase.removeChannel(channel) }
+      return () => { (supabase as any).removeChannel(channel) }
     }
 
     return () => { active = false }
@@ -127,14 +127,14 @@ export function useMessenger() {
     try {
       if (hasSupabase) {
         // asegurar conversación existente o crearla
-        const { data: existing } = await supabase
+        const { data: existing } = await (supabase as any)
           .from('conversations')
           .select('id')
           .eq('contact_id', contact.id)
           .maybeSingle()
         let convId = existing?.id
         if (!convId) {
-          const { data: created, error } = await supabase
+          const { data: created, error } = await (supabase as any)
             .from('conversations')
             .insert({ contact_id: contact.id })
             .select('id')
@@ -164,7 +164,7 @@ export function useMessenger() {
     try {
       if (hasSupabase) {
         // invocar edge function de envío hacia WhatsApp
-        await supabase.functions.invoke('send-message', { body: { conversation_id: conversationId, text } })
+        await (supabase as any).functions.invoke('send-message', { body: { conversation_id: conversationId, text } })
         return
       }
       await api.sendMessage({ conversationId, text })
