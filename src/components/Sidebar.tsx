@@ -58,10 +58,11 @@ export function Sidebar({
             <li key={c.id}>
               <button
                 onClick={() => onSelectContact(c)}
-                className={`w-full flex items-stretch gap-3 px-3 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 ${c.conversation?.id === activeConversationId ? 'bg-zinc-50 dark:bg-zinc-900/50' : ''}`}
+                className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 ${c.conversation?.id === activeConversationId ? 'bg-zinc-50 dark:bg-zinc-900/50' : ''}`}
+                style={{ minHeight: 64 }}
               >
                 <div className="relative">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white grid place-items-center font-semibold flex-shrink-0">
+                  <div className="h-11 w-11 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-white grid place-items-center font-semibold flex-shrink-0">
                     {c.name.slice(0,1).toUpperCase()}
                   </div>
                   {c.online && <span className="absolute -right-0 -bottom-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-zinc-900" />}
@@ -81,7 +82,7 @@ export function Sidebar({
                   </div>
                 </div>
               </button>
-              <div className="h-px bg-zinc-200/60 dark:bg-zinc-800/60 ml-[4.5rem]"></div>
+              <div className="h-px bg-zinc-200/60 dark:bg-zinc-800/60 ml-[4.2rem]"></div>
             </li>
           ))}
         </ul>
