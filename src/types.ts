@@ -1,6 +1,8 @@
 export type Contact = {
   id: number
   name: string
+  phone?: string
+  wa_id?: string
   avatarUrl?: string
   lastMessageAt?: string
   // UI/meta

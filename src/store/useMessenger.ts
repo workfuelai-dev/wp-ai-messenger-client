@@ -5,13 +5,6 @@ import type { Contact, Conversation, Message } from '../types'
 import { io, Socket } from 'socket.io-client'
 import { supabase } from '../lib/supabase'
 
-const mockContacts: Contact[] = [
-  { id: 101, name: 'Ana López' },
-  { id: 102, name: 'Carlos Pérez' },
-  { id: 103, name: 'María Rodríguez' },
-  { id: 104, name: 'Juan García' },
-]
-
 export function useMessenger() {
   const [contacts, setContacts] = useState<Array<Contact & { conversation?: Conversation | null }>>([])
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
@@ -30,21 +23,48 @@ export function useMessenger() {
     async function fetchInitial() {
       try {
         if (hasSupabase) {
+          console.log('Cargando datos desde Supabase...')
           // Intentar leer contactos desde tablas (contacts) o derivarlos desde conversations
           const { data: convs, error } = await (supabase as any)
             .from('conversations')
-            .select('id, contact_id, contacts:contact_id ( id, name )')
+            .select('id, contact_id, contacts:contact_id ( id, name, phone, wa_id )')
             .limit(50)
-          if (error) throw error
-          const list: Contact[] = (convs || []).map((c: any) => ({ id: c.contacts?.id ?? c.contact_id, name: c.contacts?.name ?? `Contacto ${c.contact_id}` }))
-          const withConv = list.map((c: Contact, idx: number) => ({ ...c, conversation: convs?.[idx] ? { id: (convs as any)[idx].id, contactId: c.id, title: c.name } : null }))
+          
+          if (error) {
+            console.error('Error cargando conversaciones:', error)
+            setContacts([])
+            return
+          }
+          
+          console.log('Conversaciones cargadas:', convs)
+          
+          if (!convs || convs.length === 0) {
+            console.log('No hay conversaciones, mostrando lista vacía')
+            setContacts([])
+            return
+          }
+          
+          const list: Contact[] = (convs || []).map((c: any) => ({ 
+            id: c.contacts?.id ?? c.contact_id, 
+            name: c.contacts?.name ?? c.contacts?.phone ?? c.contacts?.wa_id ?? `Contacto ${c.contact_id}`,
+            phone: c.contacts?.phone,
+            wa_id: c.contacts?.wa_id
+          }))
+          const withConv = list.map((c: Contact, idx: number) => ({ 
+            ...c, 
+            conversation: convs?.[idx] ? { id: (convs as any)[idx].id, contactId: c.id, title: c.name } : null 
+          }))
           setContacts(enrichContacts(withConv))
           return
         }
+        
+        // Fallback a API local si no hay Supabase
         const data = await api.getContacts()
         setContacts(enrichContacts(data).map(c => ({ ...c, conversation: null })))
-      } catch {
-        setContacts(enrichContacts(mockContacts).map(c => ({ ...c, conversation: null })))
+      } catch (err) {
+        console.error('Error cargando datos:', err)
+        // NO cargar mock data, dejar lista vacía
+        setContacts([])
       }
     }
 
@@ -58,12 +78,21 @@ export function useMessenger() {
     ;(async () => {
       try {
         if (hasSupabase) {
+          console.log(`Cargando mensajes para conversación ${selectedConversation.id}`)
           const { data: msgs, error } = await (supabase as any)
             .from('messages')
-            .select('id, conversation_id, sender_id, text, created_at')
+            .select('id, conversation_id, sender_id, text, created_at, wa_message_id')
             .eq('conversation_id', selectedConversation.id)
             .order('created_at', { ascending: true })
-          if (error) throw error
+          
+          if (error) {
+            console.error('Error cargando mensajes:', error)
+            if (active) setMessages([])
+            return
+          }
+          
+          console.log('Mensajes cargados:', msgs)
+          
           const normalized: Message[] = (msgs || []).map((m: any) => ({
             id: m.id,
             conversationId: m.conversation_id,
@@ -76,11 +105,10 @@ export function useMessenger() {
           const msgs = await api.getMessages(selectedConversation.id)
           if (active) setMessages(msgs)
         }
-      } catch {
-        if (active) setMessages([
-          { id: 1, conversationId: selectedConversation.id, senderId: 2, text: 'Previsualización de conversación.', createdAt: new Date(Date.now() - 600000).toISOString() },
-          { id: 2, conversationId: selectedConversation.id, senderId: 1, text: 'Hola 👋', createdAt: new Date(Date.now() - 300000).toISOString() },
-        ])
+      } catch (err) {
+        console.error('Error cargando mensajes:', err)
+        // NO cargar mensajes mock, dejar lista vacía
+        if (active) setMessages([])
       } finally {
         if (active) setLoading(false)
       }
@@ -88,9 +116,11 @@ export function useMessenger() {
 
     // Realtime si hay supabase
     if (hasSupabase) {
+      console.log(`Suscribiendo a cambios en conversación ${selectedConversation.id}`)
       const channel = (supabase as any)
         .channel('messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` }, (payload: any) => {
+          console.log('Nuevo mensaje recibido vía realtime:', payload)
           const m = payload.new as any
           const msg: Message = { id: m.id, conversationId: m.conversation_id, senderId: m.sender_id, text: m.text, createdAt: m.created_at }
           setMessages(prev => [...prev, msg])
@@ -126,6 +156,7 @@ export function useMessenger() {
   async function selectContact(contact: Contact) {
     try {
       if (hasSupabase) {
+        console.log(`Seleccionando contacto ${contact.id} - ${contact.name}`)
         // asegurar conversación existente o crearla
         const { data: existing } = await (supabase as any)
           .from('conversations')
@@ -134,6 +165,7 @@ export function useMessenger() {
           .maybeSingle()
         let convId = existing?.id
         if (!convId) {
+          console.log(`Creando nueva conversación para contacto ${contact.id}`)
           const { data: created, error } = await (supabase as any)
             .from('conversations')
             .insert({ contact_id: contact.id })
@@ -150,7 +182,8 @@ export function useMessenger() {
       const conversation = await api.ensureConversation(contact.id)
       setSelectedConversation(conversation)
       setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
-    } catch {
+    } catch (err) {
+      console.error('Error seleccionando contacto:', err)
       const conversation: Conversation = { id: contact.id + 1000, contactId: contact.id, title: contact.name }
       setSelectedConversation(conversation)
       setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, conversation, unreadCount: 0 } : c))
@@ -163,12 +196,15 @@ export function useMessenger() {
     setContacts(prev => updatePreview(prev, optimistic))
     try {
       if (hasSupabase) {
+        console.log(`Enviando mensaje a conversación ${conversationId}:`, text)
         // invocar edge function de envío hacia WhatsApp
-        await (supabase as any).functions.invoke('send-message', { body: { conversation_id: conversationId, text } })
+        const response = await (supabase as any).functions.invoke('send-message', { body: { conversation_id: conversationId, text } })
+        console.log('Respuesta de send-message:', response)
         return
       }
       await api.sendMessage({ conversationId, text })
-    } catch {
+    } catch (err) {
+      console.error('Error enviando mensaje:', err)
       // mantener optimista
     }
   }
@@ -185,12 +221,12 @@ export function useMessenger() {
 }
 
 function enrichContacts(list: Contact[]): Contact[] {
-  return list.map((c, i) => ({
+  return list.map((c) => ({
     ...c,
     online: Math.random() > 0.4,
-    lastText: 'Último mensaje • vista previa',
-    lastAt: 'hoy',
-    unreadCount: i % 3 === 0 ? Math.ceil(Math.random() * 3) : 0,
+    lastText: 'Conversación iniciada',
+    lastAt: 'ahora',
+    unreadCount: 0, // No mostrar badges falsos
   }))
 }
 
